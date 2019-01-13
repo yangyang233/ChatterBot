@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from chatterbot import ChatBot
 
 
@@ -13,10 +12,9 @@ bot = ChatBot(
         {
             'import_path': 'chatterbot.logic.SpecificResponseAdapter',
             'input_text': 'Help me!',
-            'output_text': 'Ok, here is a link: http://chatterbot.rtfd.org/en/latest/quickstart.html'
+            'output_text': 'Ok, here is a link: http://chatterbot.rtfd.org'
         }
-    ],
-    trainer='chatterbot.trainers.ListTrainer'
+    ]
 )
 
 # Get a response given the specific input

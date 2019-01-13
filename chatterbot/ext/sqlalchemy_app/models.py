@@ -1,7 +1,10 @@
-from sqlalchemy import Table, Column, Integer, String, DateTime, ForeignKey, PickleType
+from sqlalchemy import Table, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declared_attr, declarative_base
+
+from chatterbot.conversation import StatementMixin
+from chatterbot import constants
 
 
 class ModelBase(object):
@@ -39,15 +42,37 @@ class Tag(Base):
     A tag that describes a statement.
     """
 
-    name = Column(String)
+    name = Column(
+        String(constants.TAG_NAME_MAX_LENGTH),
+        unique=True
+    )
 
 
-class Statement(Base):
+class Statement(Base, StatementMixin):
     """
     A Statement represents a sentence or phrase.
     """
 
-    text = Column(String, unique=True)
+    text = Column(
+        String(constants.STATEMENT_TEXT_MAX_LENGTH)
+    )
+
+    search_text = Column(
+        String(constants.STATEMENT_TEXT_MAX_LENGTH),
+        nullable=False,
+        server_default=''
+    )
+
+    conversation = Column(
+        String(constants.CONVERSATION_LABEL_MAX_LENGTH),
+        nullable=False,
+        server_default=''
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
 
     tags = relationship(
         'Tag',
@@ -55,66 +80,25 @@ class Statement(Base):
         backref='statements'
     )
 
-    extra_data = Column(PickleType)
-
-    in_response_to = relationship(
-        'Response',
-        back_populates='statement_table'
+    in_response_to = Column(
+        String(constants.STATEMENT_TEXT_MAX_LENGTH),
+        nullable=True
     )
 
-    def get_statement(self):
-        from chatterbot.conversation import Statement as StatementObject
-
-        statement = StatementObject(self.text, extra_data=self.extra_data)
-        for response in self.in_response_to:
-            statement.add_response(response.get_response())
-        return statement
-
-
-class Response(Base):
-    """
-    Response, contains responses related to a given statement.
-    """
-
-    text = Column(String)
-
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now()
+    search_in_response_to = Column(
+        String(constants.STATEMENT_TEXT_MAX_LENGTH),
+        nullable=False,
+        server_default=''
     )
 
-    occurrence = Column(Integer, default=1)
-
-    statement_text = Column(String, ForeignKey('statement.text'))
-
-    statement_table = relationship(
-        'Statement',
-        back_populates='in_response_to',
-        cascade='all',
-        uselist=False
+    persona = Column(
+        String(constants.PERSONA_MAX_LENGTH),
+        nullable=False,
+        server_default=''
     )
 
-    def get_response(self):
-        from chatterbot.conversation import Response as ResponseObject
-        occ = {'occurrence': self.occurrence}
-        return ResponseObject(text=self.text, **occ)
-
-
-conversation_association_table = Table(
-    'conversation_association',
-    Base.metadata,
-    Column('conversation_id', Integer, ForeignKey('conversation.id')),
-    Column('statement_id', Integer, ForeignKey('statement.id'))
-)
-
-
-class Conversation(Base):
-    """
-    A conversation.
-    """
-
-    statements = relationship(
-        'Statement',
-        secondary=lambda: conversation_association_table,
-        backref='conversations'
-    )
+    def get_tags(self):
+        """
+        Return a list of tags for this statement.
+        """
+        return [tag.name for tag in self.tags]

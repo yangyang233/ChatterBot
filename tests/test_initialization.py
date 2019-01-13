@@ -1,14 +1,12 @@
-from .base_case import ChatBotTestCase
+from tests.base_case import ChatBotTestCase
 
 
-class StringInitalizationTestCase(ChatBotTestCase):
+class StringInitializationTestCase(ChatBotTestCase):
 
     def get_kwargs(self):
         return {
-            'input_adapter': 'chatterbot.input.VariableInputTypeAdapter',
-            'output_adapter': 'chatterbot.output.OutputAdapter',
-            'database': None,
-            'silence_performance_warning': True
+            'storage_adapter': 'chatterbot.storage.SQLStorageAdapter',
+            'database_uri': None
         }
 
     def test_storage_initialized(self):
@@ -17,31 +15,17 @@ class StringInitalizationTestCase(ChatBotTestCase):
 
     def test_logic_initialized(self):
         from chatterbot.logic import BestMatch
-        self.assertEqual(len(self.chatbot.logic.adapters), 1)
-        self.assertTrue(isinstance(self.chatbot.logic.adapters[0], BestMatch))
-
-    def test_input_initialized(self):
-        from chatterbot.input import VariableInputTypeAdapter
-        self.assertTrue(isinstance(self.chatbot.input, VariableInputTypeAdapter))
-
-    def test_output_initialized(self):
-        from chatterbot.output import OutputAdapter
-        self.assertTrue(isinstance(self.chatbot.output, OutputAdapter))
+        self.assertEqual(len(self.chatbot.logic_adapters), 1)
+        self.assertTrue(isinstance(self.chatbot.logic_adapters[0], BestMatch))
 
 
-class DictionaryInitalizationTestCase(ChatBotTestCase):
+class DictionaryInitializationTestCase(ChatBotTestCase):
 
     def get_kwargs(self):
         return {
             'storage_adapter': {
                 'import_path': 'chatterbot.storage.SQLStorageAdapter',
-                'database': None
-            },
-            'input_adapter': {
-                'import_path': 'chatterbot.input.VariableInputTypeAdapter'
-            },
-            'output_adapter': {
-                'import_path': 'chatterbot.output.OutputAdapter'
+                'database_uri': None
             },
             'logic_adapters': [
                 {
@@ -60,14 +44,6 @@ class DictionaryInitalizationTestCase(ChatBotTestCase):
     def test_logic_initialized(self):
         from chatterbot.logic import BestMatch
         from chatterbot.logic import MathematicalEvaluation
-        self.assertEqual(len(self.chatbot.logic.adapters), 2)
-        self.assertTrue(isinstance(self.chatbot.logic.adapters[0], BestMatch))
-        self.assertTrue(isinstance(self.chatbot.logic.adapters[1], MathematicalEvaluation))
-
-    def test_input_initialized(self):
-        from chatterbot.input import VariableInputTypeAdapter
-        self.assertTrue(isinstance(self.chatbot.input, VariableInputTypeAdapter))
-
-    def test_output_initialized(self):
-        from chatterbot.output import OutputAdapter
-        self.assertTrue(isinstance(self.chatbot.output, OutputAdapter))
+        self.assertEqual(len(self.chatbot.logic_adapters), 2)
+        self.assertTrue(isinstance(self.chatbot.logic_adapters[0], BestMatch))
+        self.assertTrue(isinstance(self.chatbot.logic_adapters[1], MathematicalEvaluation))

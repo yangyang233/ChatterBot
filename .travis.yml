@@ -1,16 +1,17 @@
 language: python
+cache: pip
 
 python:
-  - '2.7'
-  - '3.4'
-  - '3.5'
+  - '3.6'
 
 os:
   - linux
-  - windows
 
 services:
   - mongodb
+
+env:
+  - CHATTERBOT_SHOW_TRAINING_PROGRESS=0
 
 install:
   - pip install tox coveralls codeclimate-test-reporter

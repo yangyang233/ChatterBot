@@ -1,9 +1,16 @@
-# -*- coding: utf-8 -*-
-
 """
 This module contains various text-comparison algorithms
 designed to compare one statement to another.
 """
+from chatterbot import utils
+from chatterbot import languages
+from nltk.corpus import wordnet, stopwords
+
+# Use python-Levenshtein if available
+try:
+    from Levenshtein.StringMatcher import StringMatcher as SequenceMatcher
+except ImportError:
+    from difflib import SequenceMatcher
 
 
 class Comparator:
@@ -13,23 +20,6 @@ class Comparator:
 
     def compare(self, statement_a, statement_b):
         return 0
-
-    def get_initialization_functions(self):
-        """
-        Return all initialization methods for the comparison algorithm.
-        Initialization methods must start with 'initialize_' and
-        take no parameters.
-        """
-        initialization_methods = [
-            (
-                method,
-                getattr(self, method),
-            ) for method in dir(self) if method.startswith('initialize_')
-        ]
-
-        return {
-            key: value for (key, value) in initialization_methods
-        }
 
 
 class LevenshteinDistance(Comparator):
@@ -49,27 +39,14 @@ class LevenshteinDistance(Comparator):
         :return: The percent of similarity between the text of the statements.
         :rtype: float
         """
-        import sys
-
-        # Use python-Levenshtein if available
-        try:
-            from Levenshtein.StringMatcher import StringMatcher as SequenceMatcher
-        except ImportError:
-            from difflib import SequenceMatcher
-
-        PYTHON = sys.version_info[0]
 
         # Return 0 if either statement has a falsy text value
         if not statement.text or not other_statement.text:
             return 0
 
         # Get the lowercase version of both strings
-        if PYTHON < 3:
-            statement_text = unicode(statement.text.lower()) # NOQA
-            other_statement_text = unicode(other_statement.text.lower()) # NOQA
-        else:
-            statement_text = str(statement.text.lower())
-            other_statement_text = str(other_statement.text.lower())
+        statement_text = str(statement.text.lower())
+        other_statement_text = str(other_statement.text.lower())
 
         similarity = SequenceMatcher(
             None,
@@ -93,29 +70,39 @@ class SynsetDistance(Comparator):
     This is essentially an evaluation of the closeness of synonyms.
     """
 
+    def __init__(self):
+        super().__init__()
+
+        self.language = languages.ENG
+
+        self.stopwords = None
+
     def initialize_nltk_wordnet(self):
         """
         Download required NLTK corpora if they have not already been downloaded.
         """
-        from .utils import nltk_download_corpus
-
-        nltk_download_corpus('corpora/wordnet')
+        utils.nltk_download_corpus('corpora/wordnet')
 
     def initialize_nltk_punkt(self):
         """
         Download required NLTK corpora if they have not already been downloaded.
         """
-        from .utils import nltk_download_corpus
-
-        nltk_download_corpus('tokenizers/punkt')
+        utils.nltk_download_corpus('tokenizers/punkt')
 
     def initialize_nltk_stopwords(self):
         """
         Download required NLTK corpora if they have not already been downloaded.
         """
-        from .utils import nltk_download_corpus
+        utils.nltk_download_corpus('corpora/stopwords')
 
-        nltk_download_corpus('corpora/stopwords')
+    def get_stopwords(self):
+        """
+        Get the list of stopwords from the NLTK corpus.
+        """
+        if self.stopwords is None:
+            self.stopwords = stopwords.words(self.language.ENGLISH_NAME.lower())
+
+        return self.stopwords
 
     def compare(self, statement, other_statement):
         """
@@ -127,25 +114,29 @@ class SynsetDistance(Comparator):
         .. _wordnet: http://www.nltk.org/howto/wordnet.html
         .. _NLTK: http://www.nltk.org/
         """
-        from nltk.corpus import wordnet
         from nltk import word_tokenize
-        from chatterbot import utils
         import itertools
 
         tokens1 = word_tokenize(statement.text.lower())
         tokens2 = word_tokenize(other_statement.text.lower())
 
+        # Get the stopwords for the current language
+        stop_word_set = set(self.get_stopwords())
+
         # Remove all stop words from the list of word tokens
-        tokens1 = utils.remove_stopwords(tokens1, language='english')
-        tokens2 = utils.remove_stopwords(tokens2, language='english')
+        tokens1 = set(tokens1) - stop_word_set
+        tokens2 = set(tokens2) - stop_word_set
 
         # The maximum possible similarity is an exact match
         # Because path_similarity returns a value between 0 and 1,
         # max_possible_similarity is the number of words in the longer
         # of the two input statements.
-        max_possible_similarity = max(
-            len(statement.text.split()),
-            len(other_statement.text.split())
+        max_possible_similarity = min(
+            len(tokens1),
+            len(tokens2)
+        ) / max(
+            len(tokens1),
+            len(tokens2)
         )
 
         max_similarity = 0.0
@@ -177,14 +168,28 @@ class SentimentComparison(Comparator):
     the sentiment value calculated for each statement.
     """
 
+    def __init__(self):
+        super().__init__()
+
+        self.sentiment_analyzer = None
+
     def initialize_nltk_vader_lexicon(self):
         """
         Download the NLTK vader lexicon for sentiment analysis
         that is required for this algorithm to run.
         """
-        from .utils import nltk_download_corpus
+        utils.nltk_download_corpus('vader_lexicon')
 
-        nltk_download_corpus('sentiment/vader_lexicon')
+    def get_sentiment_analyzer(self):
+        """
+        Get the initialized sentiment analyzer.
+        """
+        if self.sentiment_analyzer is None:
+            from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+            self.sentiment_analyzer = SentimentIntensityAnalyzer()
+
+        return self.sentiment_analyzer
 
     def compare(self, statement, other_statement):
         """
@@ -194,9 +199,7 @@ class SentimentComparison(Comparator):
         :return: The percent of similarity between the sentiment value.
         :rtype: float
         """
-        from nltk.sentiment.vader import SentimentIntensityAnalyzer
-
-        sentiment_analyzer = SentimentIntensityAnalyzer()
+        sentiment_analyzer = self.get_sentiment_analyzer()
         statement_polarity = sentiment_analyzer.polarity_scores(statement.text.lower())
         statement2_polarity = sentiment_analyzer.polarity_scores(other_statement.text.lower())
 
@@ -250,73 +253,99 @@ class JaccardSimilarity(Comparator):
     .. _`Jaccard similarity index`: https://en.wikipedia.org/wiki/Jaccard_index
     """
 
-    SIMILARITY_THRESHOLD = 0.5
+    def __init__(self):
+        super().__init__()
+
+        import string
+
+        self.punctuation_table = str.maketrans(dict.fromkeys(string.punctuation))
+
+        self.language = languages.ENG
+
+        self.stopwords = None
+
+        self.lemmatizer = None
 
     def initialize_nltk_wordnet(self):
         """
         Download the NLTK wordnet corpora that is required for this algorithm
         to run only if the corpora has not already been downloaded.
         """
-        from .utils import nltk_download_corpus
+        utils.nltk_download_corpus('corpora/wordnet')
 
-        nltk_download_corpus('corpora/wordnet')
+    def initialize_nltk_averaged_perceptron_tagger(self):
+        """
+        Download the NLTK averaged perceptron tagger that is required for this algorithm
+        to run only if the corpora has not already been downloaded.
+        """
+        utils.nltk_download_corpus('averaged_perceptron_tagger')
+
+    def initialize_nltk_stopwords(self):
+        """
+        Download required NLTK corpora if they have not already been downloaded.
+        """
+        utils.nltk_download_corpus('corpora/stopwords')
+
+    def get_stopwords(self):
+        """
+        Get the list of stopwords from the NLTK corpus.
+        """
+        if self.stopwords is None:
+            self.stopwords = stopwords.words(self.language.ENGLISH_NAME.lower())
+
+        return self.stopwords
+
+    def get_lemmatizer(self):
+        """
+        Get the lemmatizer.
+        """
+        if self.lemmatizer is None:
+            from nltk.stem.wordnet import WordNetLemmatizer
+
+            self.lemmatizer = WordNetLemmatizer()
+
+        return self.lemmatizer
 
     def compare(self, statement, other_statement):
         """
         Return the calculated similarity of two
         statements based on the Jaccard index.
         """
-        from nltk.corpus import wordnet
-        import nltk
-        import string
+        from nltk import pos_tag, tokenize
 
+        # Get the stopwords for the current language
+        stopwords = self.get_stopwords()
+
+        lemmatizer = self.get_lemmatizer()
+
+        # Make both strings lowercase
         a = statement.text.lower()
         b = other_statement.text.lower()
 
-        # Get default English stopwords and extend with punctuation
-        stopwords = nltk.corpus.stopwords.words('english')
-        stopwords.extend(string.punctuation)
-        stopwords.append('')
-        lemmatizer = nltk.stem.wordnet.WordNetLemmatizer()
+        # Remove punctuation from each string
+        a = a.translate(self.punctuation_table)
+        b = b.translate(self.punctuation_table)
 
-        def get_wordnet_pos(pos_tag):
-            if pos_tag[1].startswith('J'):
-                return (pos_tag[0], wordnet.ADJ)
-            elif pos_tag[1].startswith('V'):
-                return (pos_tag[0], wordnet.VERB)
-            elif pos_tag[1].startswith('N'):
-                return (pos_tag[0], wordnet.NOUN)
-            elif pos_tag[1].startswith('R'):
-                return (pos_tag[0], wordnet.ADV)
-            else:
-                return (pos_tag[0], wordnet.NOUN)
+        pos_a = pos_tag(tokenize.word_tokenize(a))
+        pos_b = pos_tag(tokenize.word_tokenize(b))
 
-        ratio = 0
-        pos_a = map(get_wordnet_pos, nltk.pos_tag(nltk.tokenize.word_tokenize(a)))
-        pos_b = map(get_wordnet_pos, nltk.pos_tag(nltk.tokenize.word_tokenize(b)))
         lemma_a = [
             lemmatizer.lemmatize(
-                token.strip(string.punctuation),
-                pos
-            ) for token, pos in pos_a if pos == wordnet.NOUN and token.strip(
-                string.punctuation
-            ) not in stopwords
+                token, utils.treebank_to_wordnet(pos)
+            ) for token, pos in pos_a if token not in stopwords
         ]
         lemma_b = [
             lemmatizer.lemmatize(
-                token.strip(string.punctuation),
-                pos
-            ) for token, pos in pos_b if pos == wordnet.NOUN and token.strip(
-                string.punctuation
-            ) not in stopwords
+                token, utils.treebank_to_wordnet(pos)
+            ) for token, pos in pos_b if token not in stopwords
         ]
 
         # Calculate Jaccard similarity
-        try:
-            ratio = len(set(lemma_a).intersection(lemma_b)) / float(len(set(lemma_a).union(lemma_b)))
-        except Exception as e:
-            print('Error', e)
-        return ratio >= self.SIMILARITY_THRESHOLD
+        numerator = len(set(lemma_a).intersection(lemma_b))
+        denominator = float(len(set(lemma_a).union(lemma_b)))
+        ratio = numerator / denominator
+
+        return ratio
 
 
 # ---------------------------------------- #

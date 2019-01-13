@@ -1,7 +1,7 @@
 from django.test import TestCase
 from chatterbot.storage import DjangoStorageAdapter
-from chatterbot.ext.django_chatterbot.models import Statement as StatementModel
-from chatterbot.ext.django_chatterbot.models import Response as ResponseModel
+from chatterbot.conversation import Statement as StatementObject
+from chatterbot.ext.django_chatterbot.models import Statement
 
 
 class DjangoAdapterTestCase(TestCase):
@@ -19,7 +19,7 @@ class DjangoAdapterTestCase(TestCase):
         self.adapter.drop()
 
 
-class DjangoStorageAdapterTestCase(DjangoAdapterTestCase):
+class DjangoStorageAdapterTests(DjangoAdapterTestCase):
 
     def test_count_returns_zero(self):
         """
@@ -33,231 +33,161 @@ class DjangoStorageAdapterTestCase(DjangoAdapterTestCase):
         The count method should return a value of 1
         when one item has been saved to the database.
         """
-        statement = StatementModel(text="Test statement")
-        self.adapter.update(statement)
+        self.adapter.create(text="Test statement")
         self.assertEqual(self.adapter.count(), 1)
 
-    def test_statement_not_found(self):
+    def test_filter_statement_not_found(self):
         """
         Test that None is returned by the find method
         when a matching statement is not found.
         """
-        self.assertEqual(self.adapter.find("Non-existant"), None)
+        results = list(self.adapter.filter(text="Non-existant"))
+        self.assertEqual(len(results), 0)
 
-    def test_statement_found(self):
+    def test_filter_statement_found(self):
         """
         Test that a matching statement is returned
         when it exists in the database.
         """
-        statement = StatementModel.objects.create(text="New statement")
+        statement = self.adapter.create(text="New statement")
 
-        found_statement = self.adapter.find("New statement")
-        self.assertNotEqual(found_statement, None)
-        self.assertEqual(found_statement.text, statement.text)
+        results = list(self.adapter.filter(text="New statement"))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, statement.text)
 
     def test_update_adds_new_statement(self):
-        statement = StatementModel.objects.create(text="New statement")
+        statement = Statement(text="New statement")
+        self.adapter.update(statement)
 
-        statement_found = self.adapter.find("New statement")
-        self.assertNotEqual(statement_found, None)
-        self.assertEqual(statement_found.text, statement.text)
+        results = list(self.adapter.filter(text="New statement"))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, statement.text)
 
     def test_update_modifies_existing_statement(self):
-        statement = StatementModel.objects.create(text="New statement")
-        other_statement = StatementModel.objects.create(text="New response")
+        statement = self.adapter.create(text="New statement")
+        other_statement = self.adapter.create(text="New response")
 
         # Check the initial values
-        found_statement = self.adapter.find(statement.text)
-        self.assertEqual(len(found_statement.in_response_to), 0)
+        results = list(self.adapter.filter(text=statement.text))
 
-        statement.in_response.create(
-            statement=statement,
-            response=other_statement
-        )
+        self.assertEqual(results[0].in_response_to, None)
+
+        statement.in_response_to = other_statement.text
+
         # Update the statement value
         self.adapter.update(statement)
 
         # Check that the values have changed
-        found_statement = self.adapter.find(statement.text)
-        self.assertEqual(len(found_statement.in_response_to), 1)
+        results = list(self.adapter.filter(text=statement.text))
+
+        self.assertEqual(results[0].in_response_to, other_statement.text)
 
     def test_get_random_returns_statement(self):
-        statement = StatementModel.objects.create(text="New statement")
+        statement = self.adapter.create(text="New statement")
 
         random_statement = self.adapter.get_random()
         self.assertEqual(random_statement.text, statement.text)
 
-    def test_find_returns_nested_responses(self):
-        statement = StatementModel.objects.create(text="Do you like this?")
-        statement.add_response(StatementModel(text="Yes"))
-        statement.add_response(StatementModel(text="No"))
+    def test_get_random_no_data(self):
+        from chatterbot.storage import StorageAdapter
 
-        self.adapter.update(statement)
+        with self.assertRaises(StorageAdapter.EmptyDatabaseException):
+            self.adapter.get_random()
 
-        result = self.adapter.find(statement.text)
+    def test_filter_by_text_multiple_results(self):
+        self.adapter.create(
+            text="Do you like this?",
+            in_response_to="Yes"
+        )
+        self.adapter.create(
+            text="Do you like this?",
+            in_response_to="No"
+        )
 
-        self.assertTrue(result.responses.filter(statement__text="Yes").exists())
-        self.assertTrue(result.responses.filter(statement__text="No").exists())
+        results = list(self.adapter.filter(text="Do you like this?"))
 
-    def test_multiple_responses_added_on_update(self):
-        statement = StatementModel.objects.create(text="You are welcome.")
-        statement.add_response(StatementModel(text="Thank you."))
-        statement.add_response(StatementModel(text="Thanks."))
-
-        self.adapter.update(statement)
-
-        result = self.adapter.find(statement.text)
-
-        self.assertEqual(result.responses.count(), 2)
-        self.assertTrue(result.responses.filter(statement__text="Thank you.").exists())
-        self.assertTrue(result.responses.filter(statement__text="Thanks.").exists())
-
-    def test_update_saves_statement_with_multiple_responses(self):
-        statement = StatementModel.objects.create(text="You are welcome.")
-        statement.add_response(StatementModel(text="Thanks."))
-        statement.add_response(StatementModel(text="Thank you."))
-
-        self.adapter.update(statement)
-
-        response = self.adapter.find(statement.text)
-
-        self.assertEqual(ResponseModel.objects.count(), 2)
-        self.assertEqual(response.responses.count(), 2)
-
-    def test_getting_and_updating_statement(self):
-        statement = StatementModel.objects.create(text="Hi")
-        statement.add_response(StatementModel(text="Hello"))
-        statement.add_response(StatementModel(text="Hello"))
-
-        self.adapter.update(statement)
-
-        response = self.adapter.find(statement.text)
-
-        self.assertEqual(response.responses.count(), 2)
-        self.assertEqual(response.responses.first().occurrence, 2)
+        self.assertEqual(len(results), 2)
 
     def test_remove(self):
         text = "Sometimes you have to run before you can walk."
-        statement = StatementModel.objects.create(text=text)
+        statement = self.adapter.create(text=text)
 
         self.adapter.remove(statement.text)
-        result = self.adapter.find(text)
+        results = list(self.adapter.filter(text=text))
 
-        self.assertIsNone(result)
+        self.assertEqual(len(results), 0)
 
     def test_remove_response(self):
         text = "Sometimes you have to run before you can walk."
-        statement = StatementModel.objects.create(
-            text="A test flight is not recommended at this design phase."
-        )
-        statement.add_response(
-            StatementModel(text=text)
-        )
+        statement = self.adapter.create(text=text)
         self.adapter.remove(statement.text)
-        results = self.adapter.filter(in_response_to__contains=text)
+        results = list(self.adapter.filter(text=text))
 
-        self.assertEqual(results.count(), 0)
-
-    def test_get_response_statements(self):
-        """
-        Test that we are able to get a list of only statements
-        that are known to be in response to another statement.
-        """
-        s1 = StatementModel(text="What... is your quest?")
-        s2 = StatementModel(text="This is a phone.")
-        s3 = StatementModel(text="A what?")
-        s4 = StatementModel(text="A phone.")
-
-        s3.add_response(s2)
-        s4.add_response(s3)
-
-        for statement in [s1, s2, s3, s4]:
-            self.adapter.update(statement)
-
-        responses = self.adapter.get_response_statements()
-
-        self.assertEqual(len(responses), 2)
-        self.assertTrue(responses.filter(in_response__statement__text="This is a phone.").exists())
-        self.assertTrue(responses.filter(in_response__statement__text="A what?").exists())
+        self.assertEqual(len(results), 0)
 
 
-class DjangoAdapterFilterTestCase(DjangoAdapterTestCase):
-
-    def setUp(self):
-        super(DjangoAdapterFilterTestCase, self).setUp()
-
-        self.statement1 = StatementModel(text="Testing...")
-        self.statement1.add_response(
-            StatementModel(text="Why are you counting?")
-        )
-
-        self.statement2 = StatementModel(text="Testing one, two, three.")
-        self.statement2.add_response(self.statement1)
+class DjangoAdapterFilterTests(DjangoAdapterTestCase):
 
     def test_filter_text_no_matches(self):
-        self.adapter.update(self.statement1)
-        results = self.adapter.filter(text="Howdy")
+        self.adapter.create(
+            text='Testing...',
+            in_response_to='Why are you counting?'
+        )
+        results = list(self.adapter.filter(text="Howdy"))
 
         self.assertEqual(len(results), 0)
 
     def test_filter_in_response_to_no_matches(self):
-        self.adapter.update(self.statement1)
+        self.adapter.create(
+            text='Testing...',
+            in_response_to='Why are you counting?'
+        )
 
-        results = self.adapter.filter(in_response_to="Maybe")
+        results = list(self.adapter.filter(in_response_to="Maybe"))
+
         self.assertEqual(len(results), 0)
 
     def test_filter_equal_results(self):
-        statement1 = StatementModel(text="Testing...")
-        statement2 = StatementModel(text="Testing one, two, three.")
+        statement1 = self.adapter.create(text="Testing...")
+        statement2 = self.adapter.create(text="Testing one, two, three.")
 
-        self.adapter.update(statement1)
-        self.adapter.update(statement2)
+        results = list(self.adapter.filter(in_response_to=None))
 
-        results = self.adapter.filter(in_response_to=[])
+        self.assertEqual(len(results), 2)
 
-        self.assertEqual(results.count(), 2)
-        self.assertTrue(results.filter(text=statement1.text).exists())
-        self.assertTrue(results.filter(text=statement2.text).exists())
+        text_for_statements = [
+            statement.text for statement in results
+        ]
+        self.assertIn(statement1.text, text_for_statements)
+        self.assertIn(statement2.text, text_for_statements)
 
     def test_filter_contains_result(self):
-        self.adapter.update(self.statement1)
-        self.adapter.update(self.statement2)
-
-        results = self.adapter.filter(
-            in_response_to__contains="Why are you counting?"
+        self.adapter.create(
+            text='Testing...',
+            in_response_to='Why are you counting?'
         )
-        self.assertEqual(results.count(), 1)
-        self.assertTrue(results.filter(text=self.statement1.text).exists())
+        self.adapter.create(
+            text='Testing one, two, three.',
+            in_response_to='Testing...'
+        )
+
+        results = list(self.adapter.filter(
+            in_response_to="Why are you counting?"
+        ))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, 'Testing...')
 
     def test_filter_contains_no_result(self):
-        self.adapter.update(self.statement1)
-
-        results = self.adapter.filter(
-            in_response_to__contains="How do you do?"
-        )
-        self.assertEqual(results.count(), 0)
-
-    def test_filter_multiple_parameters(self):
-        self.adapter.update(self.statement1)
-        self.adapter.update(self.statement2)
-
-        results = self.adapter.filter(
-            text="Testing...",
-            in_response_to__contains="Why are you counting?"
+        self.adapter.create(
+            text='Testing...',
+            in_response_to='Why are you counting?'
         )
 
-        self.assertEqual(results.count(), 1)
-        self.assertTrue(results.filter(text=self.statement1.text).exists())
-
-    def test_filter_multiple_parameters_no_results(self):
-        self.adapter.update(self.statement1)
-        self.adapter.update(self.statement2)
-
-        results = self.adapter.filter(
-            text="Test",
-            in_response_to__contains="Not an existing response."
-        )
-
+        results = list(self.adapter.filter(
+            in_response_to="How do you do?"
+        ))
         self.assertEqual(len(results), 0)
 
     def test_filter_no_parameters(self):
@@ -265,48 +195,54 @@ class DjangoAdapterFilterTestCase(DjangoAdapterTestCase):
         If no parameters are passed to the filter,
         then all statements should be returned.
         """
-        statement1 = StatementModel(text="Testing...")
-        statement2 = StatementModel(text="Testing one, two, three.")
-        self.adapter.update(statement1)
-        self.adapter.update(statement2)
+        self.adapter.create(text="Testing...")
+        self.adapter.create(text="Testing one, two, three.")
 
-        results = self.adapter.filter()
+        results = list(self.adapter.filter())
 
         self.assertEqual(len(results), 2)
 
-    def test_filter_returns_statement_with_multiple_responses(self):
-        statement = StatementModel.objects.create(text="You are welcome.")
-        statement.add_response(StatementModel(text="Thanks."))
-        statement.add_response(StatementModel(text="Thank you."))
+    def test_filter_by_tag(self):
+        self.adapter.create(text="Hello!", tags=["greeting", "salutation"])
+        self.adapter.create(text="Hi everyone!", tags=["greeting", "exclamation"])
+        self.adapter.create(text="The air contains Oxygen.", tags=["fact"])
 
-        self.adapter.update(statement)
+        results = list(self.adapter.filter(tags=["greeting"]))
 
-        response = self.adapter.filter(
-            in_response_to__contains="Thanks."
-        )
+        results_text_list = [statement.text for statement in results]
 
-        # Get the first response
-        response = response.first()
+        self.assertEqual(len(results_text_list), 2)
+        self.assertIn("Hello!", results_text_list)
+        self.assertIn("Hi everyone!", results_text_list)
 
-        self.assertEqual(response.responses.count(), 2)
+    def test_filter_by_tags(self):
+        self.adapter.create(text="Hello!", tags=["greeting", "salutation"])
+        self.adapter.create(text="Hi everyone!", tags=["greeting", "exclamation"])
+        self.adapter.create(text="The air contains Oxygen.", tags=["fact"])
 
-    def test_response_list_in_results(self):
-        """
-        If a statement with response values is found using the filter
-        method, they should be returned as response objects.
-        """
-        statement = StatementModel.objects.create(
-            text="The first is to help yourself, the second is to help others.",
-        )
-        statement.add_response(StatementModel(text="Why do people have two hands?"))
+        results = list(self.adapter.filter(
+            tags=["exclamation", "fact"]
+        ))
 
-        self.adapter.update(statement)
+        results_text_list = [statement.text for statement in results]
 
-        found = self.adapter.filter(text=statement.text)
+        self.assertEqual(len(results_text_list), 2)
+        self.assertIn("Hi everyone!", results_text_list)
+        self.assertIn("The air contains Oxygen.", results_text_list)
 
-        self.assertEqual(found.count(), 1)
-        self.assertEqual(found.first().responses.count(), 1)
-        self.assertEqual(type(found.first().responses.first()), ResponseModel)
+    def test_filter_page_size(self):
+        self.adapter.create(text='A')
+        self.adapter.create(text='B')
+        self.adapter.create(text='C')
+
+        results = self.adapter.filter(page_size=2)
+
+        results_text_list = [statement.text for statement in results]
+
+        self.assertEqual(len(results_text_list), 3)
+        self.assertIn('A', results_text_list)
+        self.assertIn('B', results_text_list)
+        self.assertIn('C', results_text_list)
 
     def test_confidence(self):
         """
@@ -316,36 +252,248 @@ class DjangoAdapterFilterTestCase(DjangoAdapterTestCase):
         some input. Because of that, the value of the confidence score
         should never be stored in the database with the statement.
         """
-        statement = StatementModel(text='Test statement')
+        statement = self.adapter.create(text='Test statement')
         statement.confidence = 0.5
-        statement.save()
 
-        statement_updated = StatementModel.objects.get(pk=statement.id)
+        statement_updated = Statement.objects.get(pk=statement.id)
 
         self.assertEqual(statement_updated.confidence, 0)
 
+    def test_exclude_text(self):
+        self.adapter.create(text='Hello!')
+        self.adapter.create(text='Hi everyone!')
 
-class DjangoOrderingTestCase(DjangoStorageAdapterTestCase):
+        results = list(self.adapter.filter(
+            exclude_text=[
+                'Hello!'
+            ]
+        ))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, 'Hi everyone!')
+
+    def test_exclude_text_words(self):
+        self.adapter.create(text='This is a good example.')
+        self.adapter.create(text='This is a bad example.')
+        self.adapter.create(text='This is a worse example.')
+
+        results = list(self.adapter.filter(
+            exclude_text_words=[
+                'bad', 'worse'
+            ]
+        ))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, 'This is a good example.')
+
+    def test_persona_not_startswith(self):
+        self.adapter.create(text='Hello!', persona='bot:tester')
+        self.adapter.create(text='Hi everyone!', persona='user:person')
+
+        results = list(self.adapter.filter(
+            persona_not_startswith='bot:'
+        ))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, 'Hi everyone!')
+
+    def test_search_text_contains(self):
+        self.adapter.create(text='Hello!', search_text='hello exclamation')
+        self.adapter.create(text='Hi everyone!', search_text='hi everyone')
+
+        results = list(self.adapter.filter(
+            search_text_contains='everyone'
+        ))
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, 'Hi everyone!')
+
+    def test_search_text_contains_multiple_matches(self):
+        self.adapter.create(text='Hello!', search_text='hello exclamation')
+        self.adapter.create(text='Hi everyone!', search_text='hi everyone')
+
+        results = list(self.adapter.filter(
+            search_text_contains='hello everyone'
+        ))
+
+        self.assertEqual(len(results), 2)
+
+
+class DjangoOrderingTests(DjangoAdapterTestCase):
     """
     Test cases for the ordering of sets of statements.
     """
 
     def test_order_by_text(self):
-        statement_a = StatementModel.objects.create(text='A is the first letter of the alphabet.')
-        statement_b = StatementModel.objects.create(text='B is the second letter of the alphabet.')
+        statement_a = self.adapter.create(text='A is the first letter of the alphabet.')
+        statement_b = self.adapter.create(text='B is the second letter of the alphabet.')
 
-        results = self.adapter.filter(order_by='text')
+        results = list(self.adapter.filter(order_by=['text']))
 
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0], statement_a)
         self.assertEqual(results[1], statement_b)
 
     def test_reverse_order_by_text(self):
-        statement_a = StatementModel.objects.create(text='A is the first letter of the alphabet.')
-        statement_b = StatementModel.objects.create(text='B is the second letter of the alphabet.')
+        statement_a = self.adapter.create(text='A is the first letter of the alphabet.')
+        statement_b = self.adapter.create(text='B is the second letter of the alphabet.')
 
-        results = self.adapter.filter(order_by='-text')
+        results = list(self.adapter.filter(order_by=['-text']))
 
         self.assertEqual(len(results), 2)
         self.assertEqual(results[1], statement_a)
         self.assertEqual(results[0], statement_b)
+
+
+class StorageAdapterCreateTests(DjangoAdapterTestCase):
+    """
+    Tests for the create function of the storage adapter.
+    """
+
+    def test_create_text(self):
+        self.adapter.create(text='testing')
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].text, 'testing')
+
+    def test_create_search_text(self):
+        self.adapter.create(
+            text='testing',
+            search_text='test'
+        )
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].search_text, 'test')
+
+    def test_create_search_in_response_to(self):
+        self.adapter.create(
+            text='testing',
+            search_in_response_to='test'
+        )
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].search_in_response_to, 'test')
+
+    def test_create_tags(self):
+        self.adapter.create(text='testing', tags=['a', 'b'])
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 1)
+        self.assertIn('a', results[0].get_tags())
+        self.assertIn('b', results[0].get_tags())
+
+    def test_create_duplicate_tags(self):
+        """
+        The storage adapter should not create a statement with tags
+        that are duplicates.
+        """
+        self.adapter.create(text='testing', tags=['ab', 'ab'])
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results[0].get_tags()), 1)
+        self.assertEqual(results[0].get_tags(), ['ab'])
+
+    def test_create_many_text(self):
+        self.adapter.create_many([
+            StatementObject(text='A'),
+            StatementObject(text='B')
+        ])
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0].text, 'A')
+        self.assertEqual(results[1].text, 'B')
+
+    def test_create_many_search_text(self):
+        self.adapter.create_many([
+            StatementObject(text='A', search_text='a'),
+            StatementObject(text='B', search_text='b')
+        ])
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0].search_text, 'a')
+        self.assertEqual(results[1].search_text, 'b')
+
+    def test_create_many_search_in_response_to(self):
+        self.adapter.create_many([
+            StatementObject(text='A', search_in_response_to='a'),
+            StatementObject(text='B', search_in_response_to='b')
+        ])
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0].search_in_response_to, 'a')
+        self.assertEqual(results[1].search_in_response_to, 'b')
+
+    def test_create_many_tags(self):
+        self.adapter.create_many([
+            StatementObject(text='A', tags=['first', 'letter']),
+            StatementObject(text='B', tags=['second', 'letter'])
+        ])
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 2)
+        self.assertIn('letter', results[0].get_tags())
+        self.assertIn('letter', results[1].get_tags())
+        self.assertIn('first', results[0].get_tags())
+        self.assertIn('second', results[1].get_tags())
+
+    def test_create_many_duplicate_tags(self):
+        """
+        The storage adapter should not create a statement with tags
+        that are duplicates.
+        """
+        self.adapter.create_many([
+            StatementObject(text='testing', tags=['ab', 'ab'])
+        ])
+
+        results = list(self.adapter.filter())
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results[0].get_tags()), 1)
+        self.assertEqual(results[0].get_tags(), ['ab'])
+
+
+class StorageAdapterUpdateTests(DjangoAdapterTestCase):
+    """
+    Tests for the update function of the storage adapter.
+    """
+
+    def test_update_adds_tags(self):
+        statement = self.adapter.create(text='Testing')
+        statement.add_tags('a', 'b')
+        self.adapter.update(statement)
+
+        statements = list(self.adapter.filter())
+
+        self.assertEqual(len(statements), 1)
+        self.assertIn('a', statements[0].get_tags())
+        self.assertIn('b', statements[0].get_tags())
+
+    def test_update_duplicate_tags(self):
+        """
+        The storage adapter should not update a statement with tags
+        that are duplicates.
+        """
+        statement = self.adapter.create(text='Testing', tags=['ab'])
+        statement.add_tags('ab')
+        self.adapter.update(statement)
+
+        statements = list(self.adapter.filter())
+
+        self.assertEqual(len(statements), 1)
+        self.assertEqual(len(statements[0].get_tags()), 1)
+        self.assertEqual(statements[0].get_tags(), ['ab'])

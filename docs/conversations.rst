@@ -10,21 +10,21 @@ different conversations with different people at the same time.
 Conversation scope
 ------------------
 
-If two :code:`ChatBot` instances are created, each will have conversations separate from each other.
+If two ``ChatBot`` instances are created, each will have conversations separate from each other.
 
 An adapter can access any conversation as long as the unique identifier for the conversation is provided.
 
 Conversation example
 --------------------
 
-The following example is taken from the Django :code:`ChatterBotView` built into ChatterBot.
+The following example is taken from the Django ``ChatterBotApiView`` built into ChatterBot.
 In this method, the unique identifiers for each chat session are being stored in Django's
 session objects. This allows different users who interact with the bot through different
 web browsers to have separate conversations with the chat bot.
 
-.. literalinclude:: ../chatterbot/ext/django_chatterbot/views.py
+.. literalinclude:: ../examples/django_app/example_app/views.py
    :language: python
-   :pyobject: ChatterBotView.post
+   :pyobject: ChatterBotApiView.post
    :dedent: 4
 
 
@@ -45,19 +45,14 @@ has returned based on some input.
       ChatterBot's logic adapters assign a confidence score to the statement
       before it is returned. The confidence score indicates the degree of
       certainty with which the chat bot believes this is the correct response
-      to the given input. 
+      to the given input.
 
-..  _conversation_responses:
+   .. autoinstanceattribute:: chatterbot.conversation.Statement.in_response_to
 
-Responses
-=========
+      The response attribute represents the relationship between two statements.
+      This value of this field indicates that one statement was issued in response
+      to another statement.
 
-ChatterBot's response objects represent the relationship between two
-statements. A response indicates that one statement was issued in
-response to another statement.
-
-.. autoclass:: chatterbot.conversation.Response
-   :members:
 
 Statement-response relationship
 ===============================
@@ -68,14 +63,14 @@ number of possible responses.
 .. image:: _static/statement-response-relationship.svg
    :alt: ChatterBot statement-response relationship
 
-Each :code:`Statement` object has an :code:`in_response_to` reference which links the
+Each ``Statement`` object has an ``in_response_to`` reference which links the
 statement to a number of other statements that it has been learned to be in response to.
-The :code:`in_response_to` attribute is essentially a reference to all parent statements
+The ``in_response_to`` attribute is essentially a reference to all parent statements
 of the current statement.
 
 .. image:: _static/statement-relationship.svg
    :alt: ChatterBot statement relationship
 
-The :code:`Response` object's :code:`occurrence` attribute indicates the number of times
-that the statement has been given as a response. This makes it possible for the chat bot
-to determine if a particular response is more commonly used than another.
+The count of recorded statements with matching, or similar text indicates the number of
+times that the statement has been given as a response. This makes it possible for the
+chat bot to determine if a particular response is more commonly used than another.

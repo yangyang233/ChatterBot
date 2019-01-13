@@ -2,22 +2,21 @@
 Django Integration
 ==================
 
-ChatterBot has direct support for integration with Django. ChatterBot provides
-out of the box models and endpoints that allow you build ChatterBot powered
-Django applications.
+ChatterBot has direct support for integration with Django's ORM.
+It is relatively easy to use ChatterBot within your Django application
+to create conversational pages and endpoints.
 
 .. toctree::
    :maxdepth: 2
 
    settings
-   training
    views
    wsgi
 
 Install packages
 ================
 
-Install with pip
+Begin by making sure that you have installed both ``django`` and ``chatterbot``.
 
 .. sourcecode:: sh
 
@@ -38,30 +37,15 @@ Add `chatterbot.ext.django_chatterbot` to your `INSTALLED_APPS`
    )
 
 
-API view
---------
-
-If you need a ChatterBot API endpoint you will want to add the following to your urls.py
-
-.. code-block:: python
-
-   urlpatterns = patterns(
-       ...
-       url(r'^chatterbot/', include('chatterbot.ext.django_chatterbot.urls', namespace='chatterbot')),
-   )
-
-
 Migrations
 ----------
+
+You can run the Django database migrations for your chat bot with the
+following command.
 
 .. sourcecode:: sh
 
    python manage.py migrate django_chatterbot
-
-.. note::
-
-   Looking for a working example? Check our the example Django app using
-   ChatterBot on GitHub: https://github.com/gunthercox/ChatterBot/tree/master/examples/django_app
 
 MongoDB and Django
 ------------------

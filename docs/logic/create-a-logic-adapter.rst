@@ -3,14 +3,8 @@ Creating a new logic adapter
 ============================
 
 You can write your own logic adapters by creating a new class that
-inherits from :code:`LogicAdapter` and overrides the necessary
-methods established in the :code:`LogicAdapter` base class.
-
-Logic adapter methods
-=====================
-
-.. autoclass:: chatterbot.logic.LogicAdapter
-   :members:
+inherits from ``LogicAdapter`` and overrides the necessary
+methods established in the ``LogicAdapter`` base class.
 
 Example logic adapter
 =====================
@@ -21,8 +15,9 @@ Example logic adapter
 
 
    class MyLogicAdapter(LogicAdapter):
+
        def __init__(self, **kwargs):
-           super(MyLogicAdapter, self).__init__(**kwargs)
+           super().__init__(**kwargs)
 
        def can_process(self, statement):
            return True
@@ -51,7 +46,7 @@ Your directory setup should look something like the following:
    ├── cool_chatbot.py
    └── cool_adapter.py
 
-Then assuming that you have a class named :code:`MyLogicAdapter` in your *cool_chatbot.py* file,
+Then assuming that you have a class named ``MyLogicAdapter`` in your *cool_adapter.py* file,
 you should be able to specify the following when you initialize your chat bot.
 
 .. code-block:: python
@@ -60,7 +55,7 @@ you should be able to specify the following when you initialize your chat bot.
        # ...
        logic_adapters=[
            {
-               'import_path': 'cool_chatbot.MyLogicAdapter'
+               'import_path': 'cool_adapter.MyLogicAdapter'
            }
        ]
    )
@@ -69,7 +64,7 @@ Responding to specific input
 ============================
 
 If you want a particular logic adapter to only respond to a unique type of
-input, the best way to do this is by overriding the :code:`can_process`
+input, the best way to do this is by overriding the ``can_process``
 method on your own logic adapter.
 
 Here is a simple example. Let's say that we only want this logic adapter to
@@ -121,7 +116,7 @@ For this example we will use a fictitious API endpoint that returns the current 
 
        temperature = data.get('temperature', 'unavailable')
 
-       response_statement = Statement('The current temperature is {}'.format(temperature))
+       response_statement = Statement(text='The current temperature is {}'.format(temperature))
 
        return confidence, response_statement
 
@@ -129,11 +124,11 @@ Providing extra arguments
 =========================
 
 All key word arguments that have been set in your ChatBot class's constructor
-will also be passed to the :code:`__init__` method of each logic adapter.
+will also be passed to the ``__init__`` method of each logic adapter.
 This allows you to access these variables if you need to use them in your logic adapter.
 (An API key might be an example of a parameter you would want to access here.)
 
-You can override the :code:`__init__` method on your logic adapter to store additional
+You can override the ``__init__`` method on your logic adapter to store additional
 information passed to it by the ChatBot class.
 
 
@@ -145,7 +140,7 @@ information passed to it by the ChatBot class.
 
            self.api_key = kwargs.get('secret_key')
 
-The :code:`secret_key` variable would then be passed to the ChatBot class as shown below.
+The ``secret_key`` variable would then be passed to the ChatBot class as shown below.
 
 .. code-block:: python
 

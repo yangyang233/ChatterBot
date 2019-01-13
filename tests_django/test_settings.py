@@ -2,6 +2,7 @@
 Django settings for when tests are run.
 """
 import os
+from chatterbot import constants
 
 DEBUG = True
 
@@ -19,14 +20,18 @@ INSTALLED_APPS = [
 
 CHATTERBOT = {
     'name': 'Test Django ChatterBot',
-    'trainer': 'chatterbot.trainers.ChatterBotCorpusTrainer',
-    'training_data': [
-        'chatterbot.corpus.english.greetings'
+    'logic_adapters': [
+        {
+            'import_path': 'chatterbot.logic.BestMatch',
+        },
+        {
+            'import_path': 'chatterbot.logic.MathematicalEvaluation',
+        }
     ],
+    'storage_adapter': 'chatterbot.storage.DjangoStorageAdapter',
+    'django_app_name': constants.DEFAULT_DJANGO_APP_NAME,
     'initialize': False
 }
-
-ROOT_URLCONF = 'chatterbot.ext.django_chatterbot.urls'
 
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -51,3 +56,19 @@ PASSWORD_HASHERS = (
 )
 
 USE_TZ = True
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+        },
+    },
+}

@@ -31,7 +31,7 @@ this is just a simple check that a unicode response can be processed.
        response = self.chatbot.get_response(u'سلام')
        self.assertGreater(len(response.text), 0)
 
-This test passes in both Python 2.7 and 3.x. It also verifies that
+This test passes Python 3. It also verifies that
 ChatterBot *can* take unicode input without issue.
 
 How do I fix Python encoding errors?
@@ -57,8 +57,8 @@ Unicode header
 When to use the unicode header
 ++++++++++++++++++++++++++++++
 
-If your strings use escaped unicode characters (they look like :code:`u'\u00b0C'`) then
-you do not need to add the header. If you use strings like :code:`'ØÆÅ'` then you are required
+If your strings use escaped unicode characters (they look like ``u'\u00b0C'``) then
+you do not need to add the header. If you use strings like ``'ØÆÅ'`` then you are required
 to use the header.
 
 If you are using this header it must be the first line in your Python file.
@@ -74,7 +74,7 @@ Unicode escape characters
 When to use escape characters
 +++++++++++++++++++++++++++++
 
-Prefix your strings with the unicode escape character :code:`u'...'` when you are
+Prefix your strings with the unicode escape character ``u'...'`` when you are
 using escaped unicode characters.
 
 Import unicode literals from future

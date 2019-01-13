@@ -2,9 +2,10 @@
 Test ChatterBot's statement comparison algorithms.
 """
 
-from unittest import TestCase, SkipTest
+from unittest import TestCase
 from chatterbot.conversation import Statement
 from chatterbot import comparisons
+from chatterbot import utils
 
 
 class LevenshteinDistanceTestCase(TestCase):
@@ -13,8 +14,8 @@ class LevenshteinDistanceTestCase(TestCase):
         """
         Falsy values should match by zero.
         """
-        statement = Statement('')
-        other_statement = Statement('Hello')
+        statement = Statement(text='')
+        other_statement = Statement(text='Hello')
 
         value = comparisons.levenshtein_distance(statement, other_statement)
 
@@ -24,8 +25,8 @@ class LevenshteinDistanceTestCase(TestCase):
         """
         Falsy values should match by zero.
         """
-        statement = Statement('Hello')
-        other_statement = Statement('')
+        statement = Statement(text='Hello')
+        other_statement = Statement(text='')
 
         value = comparisons.levenshtein_distance(statement, other_statement)
 
@@ -36,8 +37,8 @@ class LevenshteinDistanceTestCase(TestCase):
         Test that an exception is not raised if a statement is initialized
         with an integer value as its text attribute.
         """
-        statement = Statement(2)
-        other_statement = Statement('Hello')
+        statement = Statement(text=2)
+        other_statement = Statement(text='Hello')
 
         value = comparisons.levenshtein_distance(statement, other_statement)
 
@@ -47,8 +48,8 @@ class LevenshteinDistanceTestCase(TestCase):
         """
         Test that text capitalization is ignored.
         """
-        statement = Statement('Hi HoW ArE yOu?')
-        other_statement = Statement('hI hOw are YoU?')
+        statement = Statement(text='Hi HoW ArE yOu?')
+        other_statement = Statement(text='hI hOw are YoU?')
 
         value = comparisons.levenshtein_distance(statement, other_statement)
 
@@ -57,34 +58,46 @@ class LevenshteinDistanceTestCase(TestCase):
 
 class SynsetDistanceTestCase(TestCase):
 
-    def test_get_initialization_functions(self):
+    def test_exact_match_different_stopwords(self):
         """
-        Test that the initialization functions are returned.
+        Test that stopwords are ignored.
         """
-        functions = comparisons.synset_distance.get_initialization_functions()
+        statement = Statement(text='What is matter?')
+        other_statement = Statement(text='What is the matter?')
 
-        self.assertIn('initialize_nltk_wordnet', functions)
+        value = comparisons.synset_distance(statement, other_statement)
+
+        self.assertEqual(value, 1)
 
     def test_exact_match_different_capitalization(self):
         """
         Test that text capitalization is ignored.
         """
-        raise SkipTest('This test needs to be created.')
+        statement = Statement(text='Hi HoW ArE yOu?')
+        other_statement = Statement(text='hI hOw are YoU?')
+
+        value = comparisons.synset_distance(statement, other_statement)
+
+        self.assertEqual(value, 1)
 
 
 class SentimentComparisonTestCase(TestCase):
 
+    def setUp(self):
+        super().setUp()
+
+        # Make sure the required NLTK data files are downloaded
+        for function in utils.get_initialization_functions(
+            comparisons, 'sentiment_comparison'
+        ).values():
+            function()
+
     def test_exact_match_different_capitalization(self):
         """
         Test that text capitalization is ignored.
         """
-        statement = Statement('Hi HoW ArE yOu?')
-        other_statement = Statement('hI hOw are YoU?')
-
-        # Prepare to do the comparison
-        functions = comparisons.sentiment_comparison.get_initialization_functions()
-        for function in functions.values():
-            function()
+        statement = Statement(text='Hi HoW ArE yOu?')
+        other_statement = Statement(text='hI hOw are YoU?')
 
         value = comparisons.sentiment_comparison(statement, other_statement)
 
@@ -97,4 +110,9 @@ class JaccardSimilarityTestCase(TestCase):
         """
         Test that text capitalization is ignored.
         """
-        raise SkipTest('This test needs to be created.')
+        statement = Statement(text='Hi HoW ArE yOu?')
+        other_statement = Statement(text='hI hOw are YoU?')
+
+        value = comparisons.jaccard_similarity(statement, other_statement)
+
+        self.assertEqual(value, 1)

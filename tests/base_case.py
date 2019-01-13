@@ -1,5 +1,4 @@
-from unittest import TestCase
-from unittest import SkipTest
+from unittest import TestCase, SkipTest
 from chatterbot import ChatBot
 
 
@@ -25,10 +24,10 @@ class ChatBotTestCase(TestCase):
 
     def get_kwargs(self):
         return {
-            'input_adapter': 'chatterbot.input.VariableInputTypeAdapter',
-            'output_adapter': 'chatterbot.output.OutputAdapter',
             # Run the test database in-memory
-            'database': None
+            'database_uri': None,
+            # Don't execute initialization processes such as downloading required data
+            'initialize': False
         }
 
 
@@ -51,22 +50,14 @@ class ChatBotMongoTestCase(ChatBotTestCase):
 
     def get_kwargs(self):
         kwargs = super(ChatBotMongoTestCase, self).get_kwargs()
-        kwargs['database'] = 'chatterbot_test_database'
+        kwargs['database_uri'] = 'mongodb://localhost:27017/chatterbot_test_database'
         kwargs['storage_adapter'] = 'chatterbot.storage.MongoDatabaseAdapter'
         return kwargs
 
 
 class ChatBotSQLTestCase(ChatBotTestCase):
 
-    def setUp(self):
-        """
-        Create the tables in the database before each test is run.
-        """
-        super(ChatBotSQLTestCase, self).setUp()
-        self.chatbot.storage.create()
-
     def get_kwargs(self):
         kwargs = super(ChatBotSQLTestCase, self).get_kwargs()
-        del kwargs['database']
         kwargs['storage_adapter'] = 'chatterbot.storage.SQLStorageAdapter'
         return kwargs

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from chatterbot import ChatBot
 import tkinter as tk
 try:
@@ -24,9 +23,7 @@ class TkinterGUIExample(tk.Tk):
             logic_adapters=[
                 "chatterbot.logic.BestMatch"
             ],
-            input_adapter="chatterbot.input.VariableInputTypeAdapter",
-            output_adapter="chatterbot.output.OutputAdapter",
-            database="../database.db"
+            database_uri="sqlite:///database.db"
         )
 
         self.title("Chatterbot")

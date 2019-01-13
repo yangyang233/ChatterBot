@@ -46,22 +46,24 @@ inputs.
 .. literalinclude:: ../examples/math_and_time.py
    :language: python
 
-Gitter Example
-==============
-
-ChatterBot works great with chat rooms. An example for the
-popular service *Gitter* demonstrates this.
-
-.. literalinclude:: ../examples/gitter_example.py
-   :language: python
-
 Using SQL Adapter
 =================
 
 ChatterBot data can be saved and retrieved from SQL databases.
 
-.. literalinclude:: ../examples/sql/memory_sql_example.py
+.. literalinclude:: ../examples/memory_sql_example.py
    :language: python
+
+Read only mode
+==============
+
+Your chat bot will learn based on each new input statement it receives.
+If you want to disable this learning feature after your bot has been trained,
+you can set `read_only=True` as a parameter when initializing the bot.
+
+.. code-block:: python
+
+   chatbot = ChatBot("Johnny Five", read_only=True)
 
 More Examples
 =============
